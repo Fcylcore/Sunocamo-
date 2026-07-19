@@ -1,63 +1,90 @@
 # Suno Camo
 
-SIP003-плагин для Shadowsocks: WebSocket-маскировка поверх TLS.
-Трафик выглядит как обычное HTTPS-подключение на 443 порту, а пробующий сканер видит лендинг, имитирующий suno.com.
+**SIP003 plugin for Shadowsocks: WebSocket-over-TLS camouflage.**
+Your proxy traffic looks like ordinary HTTPS on port 443 — and an active prober gets a suno.com-style landing page instead of a proxy.
 
-## Принцип
+[English](#english) | [Русский](#русский)
+
+---
+
+## English
+
+### Why
+
+DPI systems don't just block proxies — they *probe* them. Suno Camo answers every probe with a believable HTTPS landing page, and only speaks WebSocket proxy protocol on a secret path to clients that already know where to knock.
+
+### How it works
 
 ```
-Телефон                          VDS
-Shadowsocks ──► sunocamo (клиент) ══wss:443══► sunocamo (сервер) ──► ssserver ──► интернет
+Phone                                 VPS
+Shadowsocks ──► sunocamo (client) ══wss:443══► sunocamo (server) ──► ss-server ──► internet
 ```
 
-- **Динамические настройки**: клиент берёт IP и порт из полей приложения
-  Shadowsocks (переменные SIP003 `SS_REMOTE_HOST` / `SS_REMOTE_PORT`).
-  Ничего не зашито в код.
-- **Антипробинг**: любой HTTPS-запрос, который не является WebSocket-апгрейдом
-  на секретный путь, получает лендинг в стиле suno.com.
+- **Nothing hardcoded** — the client takes host/port from the Shadowsocks app fields via SIP003 (`SS_REMOTE_HOST` / `SS_REMOTE_PORT`).
+- **Anti-probing**: any HTTPS request that is not a WebSocket upgrade to the secret path receives a suno.com-style landing page.
+- **TLS for real**: either a self-signed cert (quick start) or a proper Let's Encrypt certificate (full browser-grade handshake with SNI).
 
-## Сборка
+### Server — one command
+
+```bash
+git clone https://github.com/Fcylcore/Sunocamo-.git && cd Sunocamo-
+sudo ./install.sh              # self-signed certificate
+sudo ./install.sh my.domain    # Let's Encrypt (domain must point to your VPS)
+```
+
+The script installs shadowsocks-libev + the plugin, issues a certificate, creates a systemd unit, opens 443/tcp and prints the phone settings.
+
+### Client (Android)
+
+1. Install the **Suno Camo** plugin APK (from this repo).
+2. In the Shadowsocks app: server = VPS IP/domain, port **443**, password & method — from the `install.sh` output.
+3. Plugin: **Suno Camo**. Options:
+   - with a domain: `host=my.domain;path=/camo`
+   - without (self-signed): `insecure;path=/camo`
+
+### Plugin options (`SS_PLUGIN_OPTIONS`, `;`-separated)
+
+| Option     | Side   | Meaning                                          |
+|------------|--------|--------------------------------------------------|
+| `server`   | server | enable server mode (set by install.sh)           |
+| `cert=…`   | server | path to fullchain.pem                            |
+| `key=…`    | server | path to privkey.pem                              |
+| `host=…`   | client | SNI/Host for TLS (default: server address)       |
+| `path=…`   | both   | secret WebSocket path (default `/camo`)          |
+| `insecure` | client | skip certificate verification (self-signed only) |
+
+### Build from source
+
+Requires Go 1.23+. Single dependency: `gorilla/websocket`.
 
 ```bash
 go mod tidy
 
-# Клиент для Android (переименовать в libsunoplugin.so → lib/arm64-v8a/ в APK)
+# Android client (rename to libsunoplugin.so → lib/arm64-v8a/ inside the APK)
 CGO_ENABLED=0 GOOS=android GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o libsunoplugin.so .
 
-# Сервер для VDS
+# Linux server
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o sunocamo-server .
 ```
 
-## Сервер (одна команда)
+### Honest limitations
 
-```bash
-sudo ./install.sh              # self-signed сертификат
-sudo ./install.sh мой.домен    # Let's Encrypt (нужен домен, смотрящий на VDS)
-```
+- **TCP only** (no UDP — voice calls over the tunnel won't work).
+- Camouflage raises the bar for DPI, it doesn't make you invisible. Active probing resistance depends on keeping the WS path secret.
+- Built for personal use on your own VPS. Not audited — read the code (it's small on purpose, ~300 lines).
 
-Скрипт ставит shadowsocks-libev, плагин, сертификат, systemd-юнит,
-открывает 443/tcp и печатает настройки для телефона.
-
-## Клиент (Android)
-
-1. Установите APK-плагин Suno Camo (бинарник внутри как `lib/arm64-v8a/libsunoplugin.so`).
-2. В приложении Shadowsocks: сервер = IP/домен VDS, порт = **443**,
-   пароль и метод — из вывода install.sh.
-3. Плагин: Suno Camo. Опции:
-   - с доменом: `host=ваш.домен;path=/camo`
-   - без домена (self-signed): `insecure;path=/camo`
-
-## Опции плагина (SS_PLUGIN_OPTIONS, через `;`)
-
-| Опция      | Режим  | Назначение                                      |
-|------------|--------|-------------------------------------------------|
-| `server`   | сервер | включить серверный режим (ставит install.sh)    |
-| `cert=…`   | сервер | путь к fullchain.pem                            |
-| `key=…`    | сервер | путь к privkey.pem                              |
-| `host=…`   | клиент | SNI/Host для TLS (по умолчанию — адрес сервера) |
-| `path=…`   | оба    | секретный WS-путь (по умолчанию `/camo`)        |
-| `insecure` | клиент | не проверять сертификат (self-signed)           |
-
-## Лицензия
+### License
 
 MIT
+
+---
+
+## Русский
+
+SIP003-плагин для Shadowsocks: WebSocket-маскировка поверх TLS. Трафик выглядит как обычное HTTPS-подключение на 443 порту, а пробующий сканер видит лендинг, имитирующий suno.com.
+
+- **Одна команда на сервере**: `sudo ./install.sh` (self-signed) или `sudo ./install.sh мой.домен` (Let's Encrypt). Скрипт ставит shadowsocks-libev, плагин, сертификат, systemd-юнит, открывает 443/tcp и печатает настройки для телефона.
+- **Клиент**: APK-плагин Suno Camo + приложение Shadowsocks (сервер, порт 443, пароль из install.sh). Опции плагина: `host=ваш.домен;path=/camo` или `insecure;path=/camo` для self-signed.
+- **Принцип**: любой HTTPS-запрос, который не является WebSocket-апгрейдом на секретный путь, получает лендинг. Прокси-протокол начинается только после правильного «стука».
+
+Подробности — в английской части выше. Лицензия: MIT.
