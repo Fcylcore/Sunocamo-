@@ -10,8 +10,7 @@
 set -euo pipefail
 
 DOMAIN="${1:-}"
-SS_PORT=8388            # внутренний порт ssserver (только localhost)
-PLUGIN_PORT=443         # наружный порт плагина (имитация HTTPS)
+PLUGIN_PORT=443         # наружный порт плагина (имитация HTTPS); ss-server сам уходит на случайный localhost-порт
 METHOD="chacha20-ietf-poly1305"
 CONF_DIR="/etc/sunocamo"
 SS_CONF="/etc/shadowsocks-libev/config.json"
@@ -51,11 +50,11 @@ PASSWORD="$(openssl rand -base64 24 | tr -d '=+/')"
 echo "==> Конфиг Shadowsocks ($SS_CONF)"
 cat > "$SS_CONF" <<EOF
 {
-    "server": "127.0.0.1",
-    "server_port": $SS_PORT,
+    "server": "0.0.0.0",
+    "server_port": $PLUGIN_PORT,
     "password": "$PASSWORD",
     "method": "$METHOD",
-    "mode": "tcp_and_udp",
+    "mode": "tcp_only",
     "plugin": "$BIN_DST",
     "plugin_opts": "server;cert=$CERT;key=$KEY;path=/camo"
 }
